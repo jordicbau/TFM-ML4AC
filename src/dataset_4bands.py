@@ -21,15 +21,15 @@ def process_metadata(path:str = HRFOLDER)->pd.DataFrame:
 
     return data_2018
 
+BANDS_L1C = ['B2', 'B4', 'B8', 'B11']
+BANDS_L2A = ['B2', 'B4', 'B8', 'B11']
 
-BANDS_L2A = ['B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B9', 'B11', 'B12']
-BANDS_L1C = ['B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B9', 'B10', 'B11', 'B12']
 
-aot_min = 0#0.042
-aot_max = 0.323
+aot_min = 0.0420
+aot_max = 0.7860
 
-wvp_min = 0#0.012
-wvp_max = 7.168
+wvp_min = -0.9990
+wvp_max = 8.3670
                    
 
 class TiffDataset(torch.utils.data.Dataset):
@@ -55,33 +55,6 @@ class TiffDataset(torch.utils.data.Dataset):
             bands = list(src1.descriptions)
             bands_read = [bands.index(b) + 1 for b in BANDS_L2A]
             sl2a = src1.read(indexes=bands_read).astype("float32") / 10_000
-            
-        with rasterio.open(s2l2a_path) as src1:
-            bands = list(src1.descriptions)
-            bands_read = bands.index('AOT') + 1
-            aot = src1.read(indexes=bands_read).astype("float32") / 1000
-            if self.train:
-                aot = torch.tensor(aot)
-                aot = torch.reshape(aot, (1, aot.shape[0], aot.shape[1]))
-                #aot_std = aot.std().cpu().detach().numpy()
-                #if aot_std == 0.0:
-                #    aot_std = 0.0001
-                #aot = (aot - aot.mean()) / aot_std
-                #aot = aot * 1.6161999702453613 / 0.318
-            
-
-        with rasterio.open(s2l2a_path) as src1:
-            bands = list(src1.descriptions)
-            bands_read = bands.index('WVP') + 1
-            wvp = src1.read(indexes=bands_read).astype("float32") / 1000
-            if self.train:
-                wvp = torch.tensor(wvp)
-                wvp = torch.reshape(wvp, (1, wvp.shape[0], wvp.shape[1]))
-                #wvp_std = wvp.std().cpu().detach().numpy()
-                #if wvp_std == 0.0:
-                #    wvp_std = 0.0001
-                #wvp = (wvp - wvp.mean()) / wvp_std
-                #wvp = wvp * 1.6161999702453613 / 7.168
 
         #https://developers.google.com/earth-engine/datasets/catalog/COPERNICUS_S2_SR#bands
         
@@ -92,7 +65,6 @@ class TiffDataset(torch.utils.data.Dataset):
             sl1c = torch.tensor(sl1c)
             sl2a = torch.tensor(sl2a)
             
-            sl2a = torch.cat((sl2a, aot, wvp), 0)
 
             #Rotation
             angles = [0, 90, 180, 270]
@@ -118,37 +90,12 @@ class TiffDataset(torch.utils.data.Dataset):
                 sl1c = sl1c
                 sl2a = sl2a
 
-            #Normalization
-            '''
-            for idx in range(len(double_std_sl1c)):
-                sl2a[idx] = sl2a[idx] / double_std_sl1c[idx]
-            for idx in range(len(double_std_sl2a)):
-                sl2a[idx] = sl2a[idx] / double_std_sl2a[idx]  ''' 
-            sl2a[12] = (sl2a[12] - aot_min) / (aot_max - aot_min)
-            sl2a[13] = (sl2a[13] - wvp_min) / (wvp_max - wvp_min)
                 
             return {"sl1c": sl1c, "sl2a": sl2a}
              
         else:
             sl1c = torch.tensor(sl1c)
             sl2a = torch.tensor(sl2a)
-            aot = torch.tensor(aot)
-            wvp = torch.tensor(wvp)
-
-            aot = torch.reshape(aot, (1, aot.shape[0], aot.shape[1]))
-            wvp = torch.reshape(wvp, (1, wvp.shape[0], wvp.shape[1]))
-            
-            sl2a = torch.cat((sl2a, aot, wvp), 0)
-            
-           # for idx in range(len(mean_sl1c)):
-            #    sl1c[idx] = (sl1c[idx] * np.mean(mean_sl1c[:12])) / mean_sl1c[idx]
-            
-            '''for idx in range(len(double_std_sl1c)):
-                sl2a[idx] = sl2a[idx] / double_std_sl1c[idx]
-            for idx in range(len(double_std_sl2a)):
-                sl2a[idx] = sl2a[idx] / double_std_sl2a[idx]   '''
-                
-            sl2a[12] = (sl2a[12] - aot_min) / (aot_max - aot_min)
-            sl2a[13] = (sl2a[13] - wvp_min) / (wvp_max - wvp_min)
             
             return {"sl1c": sl1c, "sl2a": sl2a}
+
